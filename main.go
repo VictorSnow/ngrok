@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -14,50 +17,79 @@ import (
 
 const BUFF_SIZE = 8192
 
+type Config struct {
+	Mode        string
+	Listen_addr string
+	Local_addr  string
+	Smux_addr   string
+}
+
+var ServerConfig Config
+
 func main() {
+	config_file := flag.String("config", "", "config file")
+	flag.Parse()
+
+	if *config_file == "" {
+		*config_file = "config.json"
+	}
+
+	f, e := os.OpenFile(*config_file, os.O_CREATE, os.ModePerm)
+	if e != nil {
+		log.Println("打开文件错误", *f)
+		return
+	}
+
+	err := json.NewDecoder(f).Decode(&ServerConfig)
+
+	if err != nil {
+		log.Println("解析配置文件错误", err)
+		return
+	}
 
 	go http.ListenAndServe(":9001", nil)
 
-	server := smux.NewSmux("127.0.0.1:8090", "server")
-	client := smux.NewSmux("127.0.0.1:8090", "client")
+	if ServerConfig.Mode == "server" {
+		server := smux.NewSmux(ServerConfig.Listen_addr, "server")
+		go server.Start()
+		// server
+		go func() {
+			l, err := net.Listen("tcp", ServerConfig.Listen_addr)
 
-	go server.Start()
-	go client.Start()
-
-	// server
-	go func() {
-		l, err := net.Listen("tcp", "127.0.0.1:9000")
-
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		for {
-			conn, err := l.Accept()
 			if err != nil {
 				log.Println(err)
-				continue
-			}
-			log.Println("handle new conn")
-			go handleConn(server, conn)
-		}
-	}()
-
-	go func() {
-		for {
-			c := client.Accept()
-			conn, err := net.Dial("tcp", "127.0.0.1:80")
-
-			if err != nil {
-				c.Close(true)
-				log.Panicln(err)
 				return
 			}
 
-			go pipe(c, conn)
-		}
-	}()
+			for {
+				conn, err := l.Accept()
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				log.Println("handle new conn")
+				go handleConn(server, conn)
+			}
+		}()
+	} else {
+		client := smux.NewSmux(ServerConfig.Local_addr, "client")
+		go client.Start()
+
+		go func() {
+			for {
+				c := client.Accept()
+				conn, err := net.Dial("tcp", ServerConfig.Local_addr)
+
+				if err != nil {
+					c.Close(true)
+					log.Panicln(err)
+					return
+				}
+
+				go pipe(c, conn)
+			}
+		}()
+	}
 
 	for {
 		time.Sleep(time.Second)
