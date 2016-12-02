@@ -50,7 +50,7 @@ func main() {
 	go http.ListenAndServe(":9001", nil)
 
 	if ServerConfig.Mode == "server" {
-		server := smux.NewSmux(ServerConfig.Listen_addr, "server")
+		server := smux.NewSmux(ServerConfig.Smux_addr, "server")
 		go server.Start()
 		// server
 		go func() {
@@ -72,7 +72,7 @@ func main() {
 			}
 		}()
 	} else {
-		client := smux.NewSmux(ServerConfig.Local_addr, "client")
+		client := smux.NewSmux(ServerConfig.Smux_addr, "client")
 		go client.Start()
 
 		go func() {
