@@ -24,6 +24,28 @@ type Config struct {
 	Smux_addr   string
 }
 
+type Sconn struct {
+	c net.Conn
+}
+
+// ignore timeout err
+func (c Sconn) Write(buff []byte) (n int, err error) {
+	n, err = c.c.Write(buff)
+	if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+		return c.Write(buff)
+	}
+	return
+}
+
+// ignore timeout err
+func (c Sconn) Read(buff []byte) (n int, err error) {
+	n, err = c.c.Read(buff)
+	if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
+		return c.Read(buff)
+	}
+	return
+}
+
 var ServerConfig Config
 
 func main() {
@@ -109,6 +131,9 @@ func handleConn(s *smux.Smux, c net.Conn) {
 }
 
 func pipe(c1 *smux.Conn, c2 net.Conn) {
+
+	sc := Sconn{c2}
+
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
@@ -129,7 +154,7 @@ func pipe(c1 *smux.Conn, c2 net.Conn) {
 				break
 			}
 
-			n, err = c2.Write(buff[:n])
+			n, err = sc.Write(buff[:n])
 
 			if err != nil {
 				break
@@ -143,7 +168,7 @@ func pipe(c1 *smux.Conn, c2 net.Conn) {
 
 		buff := make([]byte, BUFF_SIZE)
 		for {
-			n, err := c2.Read(buff)
+			n, err := sc.Read(buff)
 			if err != nil {
 				break
 			}
