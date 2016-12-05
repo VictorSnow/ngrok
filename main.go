@@ -74,6 +74,29 @@ func main() {
 	if ServerConfig.Mode == "server" {
 		server := smux.NewSmux(ServerConfig.Smux_addr, "server")
 		go server.Start()
+
+		// if you need a http server forward, not a tcp traffic forward
+		// here is an example use of smux
+		//
+		//		// http server
+		//		clientServer := ClientServer{
+		//			addr: ServerConfig.Listen_addr,
+		//			host: ServerConfig.Local_addr,
+		//			dial: func(addr string) (net.Conn, error) {
+		//				// ignore addr
+		//				smuxConn, err := server.Dail()
+		//				if err != nil {
+		//					log.Println("dial error", err)
+		//					return nil, err
+		//				}
+		//				dialConn := DialConn{smuxConn}
+		//				// 开始分发数据
+		//				return dialConn, nil
+		//			},
+		//		}
+
+		//		clientServer.Listen()
+
 		// server
 		go func() {
 			l, err := net.Listen("tcp", ServerConfig.Listen_addr)
